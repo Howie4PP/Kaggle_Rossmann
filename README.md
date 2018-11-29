@@ -44,5 +44,86 @@ After preliminary exploration, it was found that Custers and Sales had a lot of 
 <img height="680" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/6.png">
 ## Algorithms and Techniques
 From the visualization, it can be seen that sales are closely related to time, but there are many other characteristics that affect it, such as the distance of competitors, whether they are in school holidays, and whether there is advertising promotion. Moreover, the missing values and outliers in the data will affect the forecast of sales. In order to achieve the best prediction, the abnormal data of Sales and Customers should discard.
+
 <br>The second step is data preprocessing and feature processing and transformation, including processing missing values and making appropriate changes to important features or generating partial new features from old features to facilitate training of the model. For example, convert the characteristics of different characters into numbers, such as ‘mappings = {'0': 0, 'a':1, 'b':2, 'c':3, 'd':4}’. Due to the close relationship with time characteristics, time features are split and transformed, and ‘weekOfYear’, 'CompetitionOpen' and 'PromoOpen' are added as new features. Convert the 'PromoInterval' to 'IsPromoMonth', indicating whether a store is in a promotion month.
 <br>In the third step, I tried to use the cross_validation.train_test_split to randomly divide the training data into a training set and a test set. Then I started modelled, tested, and submiited it to Kaggle to test, but I could not reach the target of 0.11. Thus, I tried to use another method to process the data, which is only train the XGBoost model.
+ * XGBoost: This is a model for supervised learning. The excellent performance of Gradient Boosting and the efficient implementation of XGBoost make it perform well in this project, and the first place in the Kaggle competition is mainly using this algorithm. Forecasting the results. XGBoost customizes a data matrix class, DMatrix, which is pre-processed at the beginning of the training to improve the efficiency of each iteration. Under supervised learning, the general linear model uses a given training set (including multidimensional features Xi) to predict the target variable Yi, which is:
+ <img width="300" height="100" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/7.png">
+The predicted values have different interpretations depending on whether the task is regression or classification. And the parameters are uncertain and need to be learned from the data. In linear regression, the parameter refers to the coefficient θ.
+In general, the objective function consists of two parts: the training set loss and the regularization term.
+<img width="300" height="100"src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/8.png">
+The Logistic loss is calculated according to the following formula:
+<img width="300" height="100" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/9.png">
+Regularization controls the complexity of the model and avoids overfitting. Based on the above formula, the derived mathematical formula of the XGBoost model is:
+<img width="300" height="100" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/10.png">
+The principle of XGBoost is to predict the score of each tree, increase the weight of the training error (lower score), and then invest in the next training, so that the next training is easier to identify the wrong classification. example. These weak classifiers are finally weighted and added. In this training, according to the weight used to update the adjustment, there is the following formula:
+<img width="300" height="100" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/11.png">
+among them:
+<img width="300" height="100" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/12.png">
+The main parameters of the XGBoost model that need to be debugged are as follows:
+
+  * Eta: Shtinkage parameter, used to update the weight of the child node, multiplied by the coefficient, equivalent to the learning rate
+  * nthread: number of threads
+  * subsample: Random sample. Lower values make the algorithm more conservative and prevent overfitting, but too small values can cause under-fitting
+  * colsample_bytree: Column sampling, which performs column sampling on the features used to generate each tree. The general setting is: 0.5-1
+## Benchmark
+The project uses RMSPE as the evaluation index, and the lower the score, the better the model performance. According to the data on Kaggle, I guess the pass value is about 0.2. But I will set the benchmark at 0.11773 and try to get into the top 10% of the private leaderboard.
+## III.Methodology
+## Data Preprocessing
+The first is to fill the missing values with 0 or 1. For example, the open data in the test data is filled with 1, and the missing data in the store is mostly related to competitors and promotions. The test finds that the effect of filling 1 is not good, so Use 0. After that, the time characteristics are classified in detail as described above, mainly by dividing the date including the year, month, and day into Day, Month, Year, DayOfWeek, WeekOfYear and other features. At the same time, the competitor information and promotion information contained in the store information have also been processed here, adding two new features:
+* CompetitionOpen is calculated according to 12 * (Year - CompetitionOpenSinceYear) + (Month - CompetitionOpenSinceMonth), and filters out data greater than 0. If it is not greater than 0, it is 0.
+* PromoOpen is calculated according to 12 * (Year - Promo2SinceYear) + (WeekOfYear - Promo2SinceWeek) / 4.0, and filters out data greater than 0. If it is not greater than 0, it is 0.
+The purpose is to calculate the business hours of a store’s competitors and the time the store has been promoted.Then after exploring through visualization, I delete the outliers and features that are not highly correlated. To avoid training and predictions that affect the regression model.    
+The continuous features are normalized according to the numerical distribution, such as the Sales feature, I will perform logarithmic scaling, and the results are visualized as follows:       
+<img width="700" height="450" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/13.png">
+One-hot coding is performed on discrete features.      
+
+## Implementation
+Testing the last 6 weeks of data as a hold_out data set with the following code:
+Train = train.sort_values(['Date'],ascending = False)
+Ho_test = train[:6*7*1115],ho_train = train[6*7*1115:]
+Only data with ‘open’ is not 0 and sales greater than 0 is taken. The feature is then split with the tag, and the tag is logarithmically processed to make the data distribution normal, to avoid skewing the data distribution.
+The training parameters of the XGBoost model are as follows:      
+<img width="500" height="300" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/14.png">
+<br>After the training is completed, the test set that was previously retained is used for detection and the prediction results of the data set are retained.    
+## Refinement
+When the prediction has completed, the results need to be analyzed. Only the 10 predictions with the largest deviation are analyzed here. As can be seen from the test results below, the best weight is 0.996 and the score is 0.120463.
+<img width="500" height="400" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/15.png">     
+<br>However, after considering the generalization of the model, the next adjustment is to correct the model with a correction factor of 0.990. code show as below:    
+<img width="600" height="400" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/16.png">     
+<br>After the correction, multiple calibration models and initial models are merged and retrained.
+Through the query of the data, the weighted fusion is used here, the reason is that the effect is better than the simple average fusion according to the query of the data.    
+## IV. Results
+## Model Evaluation and Validation
+The following is the score for the initial model and the fused modified model:
+<img height="300" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/17.png">   
+<br>It can be seen that the score of the model that was originally trained has been higher, but the fusion model has improved the score by 0.01 points and more, and the performance is more excellent. The public score is greater than the private score, which also shows that the performance is reasonable. Trustworthy, and the generalization ability of the fusion model is better than the original model.
+## Justification
+Compared with the comprehensive decision tree model, the XGBoost model has the biggest advantage of greatly shortening the time. After the adjustment, the trained models have laid the foundation for integration because of their independence. After the optimization, the scores have been greatly improved, which indicates that the fusion model is reasonable.
+## V. Conclusion
+## Free-Form Visualization
+<img width="600" height="380" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/18.png">     
+<br>It shows that XGBoost is sensitive to time from the figure. This learner is mainly learned from the time rule of Rossmann sales, and then the characteristics of each store. It can be said that the XGBoost model has a more accurate prediction for each store with different characteristics. This also shows that the XGBoost model is more reliable for predicting time-based data, and the effect of correcting the fusion is better.      
+After obtaining the final model, the forecast and real sales comparisons were made for any of the three stores. The visualization of one of the stores is as follows:
+<img height="400" src="https://github.com/Howie4PP/Kaggle_Rossmann/blob/master/images/19.png"> 
+<br>It can be seen that the predictions displayed by the model are roughly similar to the actual sales. It also shows from the side that the model training is better.
+## Reflection
+In fact, this project was done twice, and it took a lot of time to train. The first time was based on previous experience using the decision tree model and XGBoost fusion, and the prediction was made. The final score was around 0.15, no matter how many parameters were adjusted. The scores have always been fixed in this range, and it has not been able to reach the previously set goals. Later, after exploration and inquiry, it was found that the XGBoost model can be used for training alone, and the model after correction and adjustment is better. Of course, when doing this training, the confusion is the selection, clean-up and transformation of the project features. Several important features have been deleted, sometimes it is not known which is an important feature; sometimes I don’t know what visual map to use. Intuitively express the effect I want to present; when adjusting, the correction coefficient can not be determined, do not know which weight is the most appropriate; the model fusion method is mean fusion or weighted fusion. Fortunately, the final step is completed and the target is achieved.   
+
+## Improvement
+Although the final score has reached the preset goal, there is still a lot of room for improvement, such as:    
+   * Pre-processing: For the processing of missing values and outliers, in the project, the outliers are directly discarded. If you can pre-train a model, it may be better to re-predict the missing and outliers. Outliers may be more reasonable based on variance-based choices.
+   * Feature selection: A good feature segmentation or feature transformation can greatly improve the prediction results. I think it can improve the feature selection and processing.
+   * Model selection: Only the XGBoost model is used here, maybe you can try some linear models for Ensemble.
+   * Try to use the Stacking.
+   
+## Reference
+<a href="https://www.kaggle.com/tqchen/understanding-xgboost-model-on-otto-data">理解在Otto数据库中的XGBoost模型</a>
+
+<a href="https://www.kaggle.com/c/rossmann-store-sales/leaderboard">Rossmann-kaggle项目</a>
+
+<a href="https://cn.udacity.com/">监督回归学习</a>
+  
+<a href="https://zhuanlan.zhihu.com/p/25836678">【机器学习】模型融合方法概述</a>
+  
+<a href="https://dnc1994.com/2016/04/rank-10-percent-in-first-kaggle-competition/">如何在 Kaggle 首战中进入前 10%</a>
